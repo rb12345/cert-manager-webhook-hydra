@@ -1,0 +1,1449 @@
+openapi: "3.0.0"
+info:
+  version: "1.55"
+  title: Hydra IPAM
+  description: A DNS/DHCP update API for University of Oxford, spec for phys0950
+  contact:
+    name: University of Oxford IT Services Networks Team
+    email: networks@it.ox.ac.uk
+    url: http://networks.it.ox.ac.uk
+servers:
+  - url: "https://www.networks.it.ox.ac.uk/university/ipam/"
+    description: This instance's URL base
+  - url: "https://www.networks.it.ox.ac.uk/api/ipam"
+    description: Endpoint for API clients
+tags:
+  - name: circular-records
+    description: |
+      Circular records are {A,AAAA}+PTR records in a deduplicated form. They
+      have a hostname, and an IP as required fields and from these the
+      zones of the forward and reverse records are inferred by information
+      found in the zones. These records can also be found in the records
+      endpoint, albeit in the more traditional A/AAAA/PTR format.
+  - name: records
+    description: |
+      A typical representation of records as found in any DNS
+      management system.
+  - name: mac-reservations
+    description: |
+      MAC reservations are DHCP reservations. They can either be for a specific
+      IP address, or for a free address within a subnet's pool.
+  - name: zones
+    description: |
+      A typical representation of zones as found in any DNS
+      management system.
+components:
+  schemas:
+    BaseEditableFields:
+      properties:
+        hostname:
+          type: string
+          format: RFC compliant hostname
+          description: The hostname of the record. Validation is record type specific.
+        comment:
+          type: string
+          description: Freeform comment field. Markdown is recommended and may be rendered in certain situations in the UI.
+        lock_password:
+          type: string
+          format: password
+          description: If the hostname is locked, an unlock is attempted with this password
+        ttl:
+          type: integer
+          description: TTL of the record
+          minimum: 300
+          maximum: 259200
+    BaseRecord:
+      properties:
+        id:
+          type: string
+          format: uuid
+        created_in_transaction:
+          type: integer
+          description: The transaction ID in which the record was created
+        deleted_in_transaction:
+          type: integer
+          nullable: true
+          description: The transaction ID in which the record was deleted
+        comment:
+          type: string
+          description: Freeform comment field. Markdown is recommended and may be rendered in certain situations in the UI.
+    BulkDeleteRecord:
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          type: string
+          enum:
+            - delete
+    CircularRecord:
+      allOf:
+        - $ref: "#/components/schemas/NewCircularRecord"
+        - $ref: "#/components/schemas/BaseRecord"
+      example:
+        id: b51ce74d-b54c-480a-bd5f-dd5ec9b3c161
+        hostname: example.org.
+        ip: 10.0.0.1
+        ttl: 300
+        zone_name: example.org.
+        prio_et_al: false
+        comment: |
+          # This is a comment
+          * With lists
+        created_in_transaction: 1234567
+        deleted_in_transaction: false
+    CircularRecordEditableFields:
+      required:
+        - hostname
+        - ip
+      allOf:
+        - $ref: "#/components/schemas/NewCircularRecord"
+        - $ref: "#/components/schemas/BaseEditableFields"
+    CircularRecords:
+      type: array
+      items:
+        $ref: "#/components/schemas/CircularRecord"
+
+    Lock:
+      allOf:
+        - $ref: "#/components/schemas/BaseRecord"
+      properties:
+        id:
+          type: string
+          format: uuid
+        hostname:
+          type: string
+          format: Valid record type
+        comment:
+          type: string
+          default: ""
+          description: Freeform field
+        lock_password:
+          type: string
+        notification_email:
+          type: string
+          format: email
+          description: Obfuscated email which is notified when lock is unlocked
+        is_locked:
+          type: boolean
+          description: If the record can be amended
+      example:
+        id: 580c3842-e2c7-420d-9da3-a964e8908c98
+        hostname: example.org.
+        comment: FOOFOOFOOFOO
+        lock_password: ""
+        notification_email: s***e@example.org
+        is_locked: true
+    LockEditableFields:
+      properties:
+        hostname:
+          type: string
+          format: Valid hostname
+        lock_password:
+          type: string
+          format: password
+          description: Password to lock hostname with.
+        comment:
+          type: string
+          format: password
+          example: Foo
+          description: Put your valuable credit card details here.
+    Locks:
+      type: array
+      items:
+        $ref: "#/components/schemas/Lock"
+    MacPoolReservation:
+      properties:
+        hw_address:
+          type: string
+          format: Valid MAC address
+        comment:
+          type: string
+          description: |
+            As this is a synthesis of multiple reservations, it is the
+            concatenation of all distinct comments over multiple lines.
+
+            To say this explicitly, if all reservations share the same comment,
+            it will only appear once.
+        subnets:
+          type: array
+          items:
+            type: string
+            format: Subnet in CIDR format
+    MacPoolReservations:
+      type: array
+      items:
+        $ref: "#/components/schemas/MacPoolReservation"
+    MacReservation:
+      allOf:
+        - $ref: "#/components/schemas/BaseRecord"
+      properties:
+        id:
+          type: string
+          format: uuid
+        hostname:
+          type: string
+          format: Valid record type
+        hw_address:
+          type: string
+          format: Valid MAC address
+        comment:
+          type: string
+          default: ""
+          description: Freeform field
+      example:
+        id: 580c3842-e2c7-420d-9da3-a964e8908c98
+        hostname: example.org.
+        hw_address: 00:00:00:00:00
+        comment: FOOFOOFOOFOO
+    MacReservations:
+      type: array
+      items:
+        $ref: "#/components/schemas/MacReservation"
+    MacPoolReservationEditableFields:
+      required:
+        - hw_address
+        - ip
+      allOf:
+        - $ref: "#/components/schemas/NewMacPoolReservation"
+    MacReservationEditableFields:
+      required:
+        - hw_address
+        - ip
+      allOf:
+        - $ref: "#/components/schemas/NewMacReservation"
+    NewCircularRecord:
+      example:
+        hostname: foo.example.com
+        ip: 10.0.0.1
+        ttl: 301
+        comment: This is a comment
+      properties:
+        hostname:
+          type: string
+          format: Type specific validation
+        ip:
+          type: string
+          description: IP address of the record. Can be any IP address within the subnet you wish to add the reservation to.
+        comment:
+          type: string
+          default: ""
+          description: Freeform field
+        ttl:
+          type: integer
+          description: TTL of the record
+          minimum: 300
+          maximum: 259200
+    NewMacPoolReservation:
+      example:
+        ip: 10.0.0.1
+        hw_address: 00:00:00:00:00:01
+        comment: This is a comment
+      properties:
+        hw_address:
+          type: string
+          format: MAC address/DUID
+        ip:
+          type: string
+          description: IP address of the record. Can be a subnet if it's for the pool
+        expiry:
+          type: string
+          format: RFC 3339 date
+          description: |
+            Date after which reservation is not given leases.
+        comment:
+          type: string
+          default: ""
+          description: Freeform field
+    NewMacReservation:
+      example:
+        hostname: foo.example.com
+        ip: 10.0.0.1
+        hw_address: 00:00:00:00:00:01
+        comment: This is a comment
+      properties:
+        hostname:
+          type: string
+          format: Type specific validation
+        hw_address:
+          type: string
+          format: MAC address/DUID
+        ip:
+          type: string
+          description: IP address of the record. Can be a subnet if it's for the pool
+        expiry:
+          type: string
+          format: Date in RFC 3339 format
+          description: |
+            Date after which reservation is not given leases. This field is only
+            valid for pool reservations. Providing an expiry for static reservations
+            will return a validation error.
+        comment:
+          type: string
+          default: ""
+          description: Freeform field
+    NewRecord:
+      required:
+        - hostname
+        - type
+        - content
+      example:
+        hostname: foo.example.com
+        type: A
+        content: 10.0.0.1
+        ttl: 301
+        comment: FOOOOO
+      properties:
+        hostname:
+          type: string
+          format: Type specific validation
+        type:
+          type: string
+          description: The record type (e.g. A, AAAA, SRV)
+        content:
+          type: string
+          format: Type specific validation
+          description: What the value is for the record
+        comment:
+          type: string
+          default: ""
+          description: Freeform field
+        ttl:
+          type: integer
+          description: TTL of the record
+          minimum: 300
+          maximum: 259200
+        prio_et_al:
+          type: string
+          description: |
+            Prio and related fields. See [documentation](https://networks.it.ox.ac.uk/university/ipam/help/record-fields#prio-et-al)
+    NewZone:
+      allOf:
+        - $ref: "#/components/schemas/Zone"
+      required:
+        - zone_name
+      properties:
+        zone_name:
+          type: string
+          format: RFC1035 hostname
+    Record:
+      allOf:
+        - $ref: "#/components/schemas/NewRecord"
+        - $ref: "#/components/schemas/BaseRecord"
+      example:
+        id: b51ce74d-b54c-480a-bd5f-dd5ec9b3c161
+        hostname: example.org.
+        type: A
+        content: 10.0.0.1
+        ttl: 300
+        zone_name: example.org.
+        prio_et_al: false
+        comment: |
+          # This is a comment
+          * With lists
+    RecordEditableFields:
+      allOf:
+        - $ref: "#/components/schemas/BaseEditableFields"
+        - $ref: "#/components/schemas/NewRecord"
+      required:
+        - hostname
+        - type
+        - content
+    Records:
+      type: array
+      items:
+        $ref: "#/components/schemas/Record"
+    Transaction:
+      properties:
+        id:
+          type: string
+          format: uuid
+        txid:
+          type: integer
+        username:
+          type: string
+          description: The user who started the transaction
+        username_session:
+          type: string
+          description: |
+            The session user who started the transaction. Will
+            be the same as username unless masquerading is
+            occurring. Masquerading is not common.
+        records_created:
+          type: integer
+          description: Records created in this transaction. An update is a delete and a create
+        records_deleted:
+          type: integer
+          description: Records deleted in this transaction. An update is a delete and a create
+        at:
+          type: string
+          format: date-time
+      example:
+        id: b51ce74d-b54c-48aa-bd5f-dd5ec9b3c161
+        username: phys0950
+        username_session: phys0950
+        at: "2018-05-24 22:26:56"
+        txid: 235908329
+        records_created: 1
+        records_deleted: 2
+        comment: Coz you're beautifaaaal, it's true
+    Zone:
+      allOf:
+        - $ref: "#/components/schemas/ZoneEditableFields"
+      properties:
+        id:
+          type: string
+          format: uuid
+        zone_name:
+          type: string
+          format: RFC1035 hostname
+      example:
+        zone_name: example.org.
+        is_delegated: false
+    ZoneEditableFields:
+      properties:
+        soa_refresh:
+          type: integer
+        soa_retry_time:
+          type: integer
+        soa_nx_ttl:
+          type: integer
+        ttl:
+          type: integer
+          description: Default TTL given to records in this zone. Can be overridden by the record.
+          minimum: 300
+          maximum: 259200
+        comment:
+          type: string
+          format: freeform
+        valid_target_domains:
+          type: array
+          items:
+            type: string
+            format: RFC1035 hostname
+        valid_circular_records_subnets:
+          type: array
+          items:
+            type: string
+            format: CIDR subnet
+        valid_supplementary_ip_records_subnets:
+          type: array
+          items:
+            type: string
+            format: CIDR subnet
+      example:
+        soa_refresh: 1800
+        valid_target_domains:
+          - example.org.
+          - example.com.
+        valid_circular_records_subnets:
+          - 192.168.0.0/16
+          - 172.16.0.0/12
+    Zones:
+      type: array
+      items:
+        $ref: "#/components/schemas/Zone"
+  headers:
+    X-IPAM-PreviousPage:
+      description: URI for the previous page of results.
+      required: false
+      schema:
+        type: string
+        format: uri
+    X-IPAM-NextPage:
+      description: URI for the next page of results.
+      required: false
+      schema:
+        type: string
+        format: uri
+    X-IPAM-Errors:
+      description: In the event of a failure (e.g. Validation error), this is the reason
+      schema:
+        type: string
+  parameters:
+    columnsParam:
+      name: columns
+      in: query
+      description: |
+        Comma separated list of columns to return.
+      required: false
+      schema:
+        type: string
+    deleteLimitParam:
+      name: limit
+      in: query
+      description: Maximum number of records to delete. Must be smaller than 5.
+      schema:
+        type: integer
+        default: "5"
+    deleteSearchParam:
+      name: q
+      in: query
+      description:
+        $ref: "#/components/parameters/searchParam/description"
+      examples:
+        $ref: "#/components/schemas/parameters/searchParam/examples"
+      required: true
+      schema:
+        type: string
+    limitParam:
+      name: limit
+      in: query
+      description: |
+        Limit the records returned. If this is not supplied, defaults to 5000
+        records. There is a hard-coded limit of 500,001 above which the number
+        reverts to 5000.
+      required: false
+      schema:
+        type: integer
+    lockPasswordParam:
+      name: lock_password
+      in: query
+      description: Unlock a hostname for the period of a transaction
+      required: false
+      schema:
+        type: string
+        format: password
+    offsetParam:
+      name: page
+      in: query
+      description: Start the list returned at the page provided.
+      required: false
+      schema:
+        type: integer
+    orderParam:
+      name: order
+      in: query
+      description: |
+        Comma separated string of columns that you wish to use for sorting.
+        Default is big_endian_labels. Invalid columns are ignored.
+        To reverse the search, prefix with a '-'
+      schema:
+        type: string
+      examples:
+        hostnamecontent:
+          summary: Order by hostname then by content (for /records endpoint).
+          value: "hostname,content"
+        hostnamereverestype:
+          summary: Order by hostname, then by type descending (for /records endpoint).
+          value: "hostname,-type"
+        zoneip:
+          summary: Order by zone, then by ip (for /circular-records endpoint).
+          value: "hostname,-ip"
+    searchParam:
+      name: q
+      in: query
+      description: |
+        Constrain the records returned to match the provided search parameter. Format
+        is based off [Search::QueryParser](https://metacpan.org/pod/Search::QueryParser). Multiple
+        instances of this parameter may be supplied and they will be logically
+        anded.
+        [Documentation is available](https://networks.it.ox.ac.uk/itss/ipam/help/searching)
+      examples:
+        hostnameor:
+          summary: Search for records called example.com. or example.org.
+          value: "hostname:example.com. OR hostname:example.org."
+        label:
+          summary: |
+            Search for records with example or foobar in the hostname or
+            any valid searchable field
+          value: "(example.com. OR example.org.)"
+      required: false
+      schema:
+        type: string
+    showParam:
+      name: show
+      in: query
+      required: false
+      schema:
+        type: string
+        enum:
+          - all
+          - deleted
+          - mine
+      description: |
+        By default, the results returned are only records that you have permission to edit. To show
+        more than this subset, give 'all' here. Alternatively, to see deleted records, supply 'deleted'
+paths:
+  /spec:
+    get:
+      tags:
+        - swagger
+      operationId: GetSpec
+      parameters: []
+      responses:
+        "200":
+          description: |
+            Spec response. Note that permissions are checked before displaying
+            so routes that you do not have permission to access are elided.
+  /circular-records:
+    get:
+      operationId: ListCircularRecords
+      parameters:
+        - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/offsetParam"
+        - $ref: "#/components/parameters/orderParam"
+        - $ref: "#/components/parameters/searchParam"
+        - $ref: "#/components/parameters/showParam"
+      tags:
+        - circular-records
+      responses:
+        "200":
+          description: List of records matching search criteria
+          headers:
+            X-IPAM-PreviousPage:
+              $ref: "#/components/headers/X-IPAM-PreviousPage"
+            X-IPAM-NextPage:
+              $ref: "#/components/headers/X-IPAM-NextPage"
+          content:
+            application/x-www-form-urlencoded:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CircularRecord"
+    post:
+      operationId: createCircularRecord
+      tags:
+        - circular-records
+      description: |
+        Creates a new circular record, which is represented in BIND
+        as an {A,AAAA}+PTR pair.
+      requestBody:
+        description: Circular Record to add to a forward zone and reverse zone
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/CircularRecordEditableFields"
+      responses:
+        "202":
+          description: Circular record created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CircularRecord"
+        "400":
+          description: Validation error
+          headers:
+            X-IPAM-Errors:
+              $ref: "#/components/headers/X-IPAM-Errors"
+    delete:
+      operationId: BulkDeleteCircularRecords
+      tags:
+        - circular-records
+        - bulk-delete
+      description: |
+        Delete circular records based on their values
+        in the database
+      parameters:
+        - $ref: "#/components/parameters/deleteSearchParam"
+        - $ref: "#/components/parameters/deleteLimitParam"
+      responses:
+        "200":
+          description: Bulk Remove successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Records"
+        "400":
+          description: Validation error
+          headers:
+            X-IPAM-Errors:
+              $ref: "#/components/headers/X-IPAM-Errors"
+  /circular-records/bulk:
+    post:
+      tags:
+        - circular-records
+      requestBody:
+        description: |
+          Array of circular records, under the records key, that need to be
+          created/updated. Items with an ID are treated as an update. Records
+          without are treated as an insert. Any fields that are not valid for
+          editing are stripped and do not generate an error, fields such as
+          created_by and created_in_transaction. To delete a record, add a key
+          action with value "delete". In this case only the "id" field needs to
+          be present in that object.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                - record:
+                    - hostname: foo.example.com
+                      ip: 10.0.0.1
+                      ttl: 301
+                      comment: This record is created
+                    - id: b51ce74d-b54c-480a-bd5f-dd5ec9b3c161
+                      action: delete
+                  comment: This is the transaction comment
+              properties:
+                records:
+                  type: array
+                  items:
+                    allOf:
+                      - $ref: "#/components/schemas/CircularRecordEditableFields"
+                      - $ref: "#/components/schemas/BulkDeleteRecord"
+                comment:
+                  type: string
+      description: Bulk update records in one transaction
+      responses:
+        "200":
+          description: Bulk update successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Records"
+        "400":
+          description: Validation error
+          headers:
+            X-IPAM-Errors:
+              $ref: "#/components/headers/X-IPAM-Errors"
+  /circular-records/{id}:
+    parameters:
+      - name: id
+        in: path
+        description: The UUID for the record being requested
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags:
+        - circular-records
+      description: Get the record
+      responses:
+        "200":
+          description: Record object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CircularRecord"
+        "404":
+          description: Record not found
+    put:
+      tags:
+        - circular-records
+      description: Update the circular record
+      requestBody:
+        description: |
+          Fields to update. Invalid fields and non-editable fields will be ignored and will not generate an error
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/CircularRecordEditableFields"
+      responses:
+        "200":
+          description: Record updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CircularRecord"
+        "400":
+          description: Validation error
+          headers:
+            X-IPAM-Errors:
+              $ref: "#/components/headers/X-IPAM-Errors"
+        "404":
+          description: Record not found
+    delete:
+      tags:
+        - circular-records
+      description: Delete (or archive) the circular record
+      responses:
+        "204":
+          description: record removed
+        "404":
+          description: Record not found
+  /circular-records/{thingamy}:
+    parameters:
+      - name: thingamy
+        in: path
+        description: |
+          Something that can uniquely define a circular-record, like an IP or a hostname.
+          Hostname can return two records, but for updates it will be whittled down to one based on the
+          ip address supplied in the request. For GET requests you cannot use hostname.
+        required: true
+        schema:
+          type: string
+    get:
+      tags:
+        - circular-records
+      description: |
+        Get a circular record based off its IP. Note that because hostname is not uniquely identifying,
+        thingamy cannot be a hostname in this context and any attempts will result in 404 errors
+      responses:
+        "302":
+          description: Record found.
+        "404":
+          description: Record not found
+    put:
+      tags:
+        - circular-records
+      description: Insert or update the circular record
+      requestBody:
+        description: |
+          Fields to update. Invalid fields and non-editable fields will be ignored and will not
+          generate an error. The field corresponding to {thingamy} is ignored. For example, when
+          used with "PUT /circular-records/1.1.1.1", the ip field is ignored and the IP in effect
+          becomes immutable for the request.
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/CircularRecordEditableFields"
+      responses:
+        "200":
+          description: Record upserted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CircularRecord"
+        "400":
+          description: Validation error
+          headers:
+            X-IPAM-Errors:
+              $ref: "#/components/headers/X-IPAM-Errors"
+        "404":
+          description: Cannot work out what {thingamy} is. Usually because it has a dodgy character in it.
+    delete:
+      tags:
+        - circular-records
+      description: |
+        Delete circular record by the unique key of IP (hostname is not
+        unique so that will give a 404 error).
+      responses:
+        "200":
+          description: Record deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CircularRecord"
+        "404":
+          description: |
+            No record exists at that IP address or thingamy supplied
+            is not a valid IP address
+  /mac-reservations/pools:
+    get:
+      operationId: ListMacPoolReservations
+      parameters:
+        - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/offsetParam"
+        - $ref: "#/components/parameters/orderParam"
+        - $ref: "#/components/parameters/searchParam"
+      tags:
+        - mac-reservations
+        - mac-pool-reservations
+      responses:
+        "200":
+          description: List of pool reservations matching search criteria
+          headers:
+            X-IPAM-PreviousPage:
+              $ref: "#/components/headers/X-IPAM-PreviousPage"
+            X-IPAM-NextPage:
+              $ref: "#/components/headers/X-IPAM-NextPage"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MacPoolReservation"
+        "400":
+          description: Validation error
+          headers:
+            X-IPAM-Errors:
+              $ref: "#/components/headers/X-IPAM-Errors"
+    post:
+      tags:
+        - mac-reservations
+        - mac-pool-reservations
+      requestBody:
+        description: Add a new pool reservation
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/MacPoolReservationEditableFields"
+      responses:
+        "202":
+          description: Pool reservation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MacPoolReservation"
+        "400":
+          description: Validation error
+          headers:
+            X-IPAM-Errors:
+              $ref: "#/components/headers/X-IPAM-Errors"
+  /mac-reservations/pool/bulk:
+    post:
+      tags:
+        - mac-reservations
+        - mac-pool-reservations
+      requestBody:
+        description: |
+          This does not behave the same as other resources. The table is a
+          virtual table and as such there are differences to the underlying data
+          structure:
+
+            1. There is no ID field
+            2. Upserting is preferred over erroring.
+
+          If a (hw_address,subnet) pair already exists, a record creation will
+          be skipped, *even if the record has a different comment*.
+
+          Input for records can also be CSV, as described in Hydra's UI.
+
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              examples:
+                - records:
+                    - hw_address: 00:01:02:03:04:05
+                      comment: This reservation is created
+                    - hw_address: 01:02:03:04:05:06
+                      expiry: 2025-06-04
+                      comment: This reservation will stop working at some point
+                    - hw_address: ff:fe:fd:fc:fb:fa
+                      action: delete
+                      # This reservation is deleted
+                  comment: This is the transaction comment
+      description: Bulk update pool reservations in one transaction
+      responses:
+        "200":
+          description: Bulk update successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MacPoolReservations"
+        "400":
+          description: Validation error
+          headers:
+            X-IPAM-Errors:
+              $ref: "#/components/headers/X-IPAM-Errors"
+  /mac-reservations:
+    get:
+      operationId: ListMacReservations
+      parameters:
+        - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/offsetParam"
+        - $ref: "#/components/parameters/orderParam"
+        - $ref: "#/components/parameters/searchParam"
+      tags:
+        - mac-reservations
+      responses:
+        "200":
+          description: List of reservations matching search criteria
+          headers:
+            X-IPAM-PreviousPage:
+              $ref: "#/components/headers/X-IPAM-PreviousPage"
+            X-IPAM-NextPage:
+              $ref: "#/components/headers/X-IPAM-NextPage"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MacReservation"
+    post:
+      operationId: createMacReservation
+      tags:
+        - mac-reservations
+      description: |
+        Creates a new mac reservation
+      requestBody:
+        description: Mac Reservation to add to a subnet
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/MacReservationEditableFields"
+      responses:
+        "202":
+          description: mac reservation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MacReservation"
+        "400":
+          description: Validation error
+          headers:
+            X-IPAM-Errors:
+              $ref: "#/components/headers/X-IPAM-Errors"
+  /mac-reservations/bulk:
+    post:
+      tags:
+        - mac-reservations
+      requestBody:
+        description: |
+          Array of mac reservations that need to be created/updated. Items with
+          an ID are treated as an update. Entries without an ID are treated as
+          an insert. Any fields that are not valid for editing are stripped and
+          do not generate an error, fields such as created_by and
+          created_in_transaction. To delete a record, add a key `action` with
+          value "delete". In this case only the "id" field needs to be present
+          in that object.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              example:
+                - records:
+                    - hostname: foo.example.com
+                      ip: 10.0.0.1
+                      hw_address: 01:01:01:01:01
+                      ttl: 301
+                      comment: This reservation is created
+                    - id: b51ce74d-b54c-480a-bd5f-dd5ec9b3c161
+                      action: delete
+                  comment: This is the transaction comment
+              properties:
+                records:
+                  type: array
+                  items:
+                    allOf:
+                      - $ref: "#/components/schemas/MacReservationEditableFields"
+                      - $ref: "#/components/schemas/BulkDeleteRecord"
+                comment:
+                  type: string
+      description: Bulk update records in one transaction
+      responses:
+        "200":
+          description: Bulk update successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MacReservations"
+        "400":
+          description: Validation error
+          headers:
+            X-IPAM-Errors:
+              $ref: "#/components/headers/X-IPAM-Errors"
+  /mac-reservations/{id}:
+    parameters:
+      - name: id
+        in: path
+        description: The UUID for the reservation being requested
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags:
+        - mac-reservations
+      description: Get the reservation
+      responses:
+        "200":
+          description: Reservation object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MacReservation"
+        "404":
+          description: Reservation not found
+    put:
+      tags:
+        - mac-reservations
+      description: Update the mac reservation
+      requestBody:
+        description: |
+          Fields to update. Invalid field keys and non-editable fields will be
+          ignored and will not generate an error
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/MacReservationEditableFields"
+      responses:
+        "200":
+          description: Record updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MacReservation"
+        "400":
+          description: Validation error
+          headers:
+            X-IPAM-Errors:
+              $ref: "#/components/headers/X-IPAM-Errors"
+        "404":
+          description: Reservation not found
+    delete:
+      tags:
+        - mac-reservations
+      description: Delete (or archive) the mac reservation
+      responses:
+        "204":
+          description: record removed
+        "404":
+          description: Record not found
+
+  /locks:
+    description: Manipulate locks. There is deliberately no update option for locks. You much delete and clone an existing one.
+    get:
+      operationId: ListLocks
+      tags:
+        - locks
+      parameters:
+        - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/offsetParam"
+        - $ref: "#/components/parameters/orderParam"
+        - $ref: "#/components/parameters/searchParam"
+        - $ref: "#/components/parameters/showParam"
+      responses:
+        "200":
+          description: List of locks matching search criteria
+          headers:
+            X-IPAM-PreviousPage:
+              $ref: "#/components/headers/X-IPAM-PreviousPage"
+            X-IPAM-NextPage:
+              $ref: "#/components/headers/X-IPAM-NextPage"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Lock"
+    post:
+      operationId: CreateLock
+      tags:
+        - locks
+      requestBody:
+        description: Lock to create
+        required: true
+        content:
+          application:x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/LockEditableFields"
+      responses:
+        "202":
+          description: Lock created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lock"
+
+  /locks/{id}:
+    parameters:
+      - name: id
+        in: path
+        description: The UUID for the lock being requested
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags:
+        - locks
+      description: Get the lock
+      responses:
+        "200":
+          description: Record object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lock"
+        "404":
+          description: Lock not found
+    delete:
+      tags:
+        - locks
+      description: Delete the lock. Unless the lock has been unlocked globally for a time period, lock_password is required.
+      parameters:
+        - $ref: "#/components/parameters/lockPasswordParam"
+      responses:
+        "204":
+          description: Record removed successfully
+        "404":
+          description: Record not found
+  /records:
+    get:
+      operationId: ListRecords
+      parameters:
+        - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/offsetParam"
+        - $ref: "#/components/parameters/orderParam"
+        - $ref: "#/components/parameters/searchParam"
+        - $ref: "#/components/parameters/showParam"
+      tags:
+        - records
+      responses:
+        "200":
+          description: List of records matching search criteria
+          headers:
+            X-IPAM-PreviousPage:
+              $ref: "#/components/headers/X-IPAM-PreviousPage"
+            X-IPAM-NextPage:
+              $ref: "#/components/headers/X-IPAM-NextPage"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Record"
+    post:
+      operationId: createRecord
+      tags:
+        - records
+      description: |
+        Creates a new record.
+      requestBody:
+        description: Record to create
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/NewRecord"
+      responses:
+        "202":
+          description: Record created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Record"
+        "400":
+          description: Validation error
+          headers:
+            X-IPAM-Errors:
+              $ref: "#/components/headers/X-IPAM-Errors"
+    delete:
+      tags:
+        - records
+        - bulk-delete
+      description: |
+        Delete records based on their values
+        in the database
+      parameters:
+        - $ref: "#/components/parameters/deleteSearchParam"
+        - $ref: "#/components/parameters/deleteLimitParam"
+      responses:
+        "200":
+          description: Bulk Remove successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Records"
+        "400":
+          description: Validation error
+          headers:
+            X-IPAM-Errors:
+              $ref: "#/components/headers/X-IPAM-Errors"
+  /records/bulk:
+    post:
+      tags:
+        - records
+      requestBody:
+        description: |
+          Array of records that need to be created/updated.
+          Items with an ID are treated as an update. Records
+          without are treated as an insert. Any fields that are not valid
+          for editing are stripped and do not generate an error, fields such
+          as created_by and created_in_transaction.
+          To delete a record, add a key action with value "delete". In this case
+          only the "id" field needs to be present in that object.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                allOf:
+                  - $ref: "#/components/schemas/RecordEditableFields"
+                  - $ref: "#/components/schemas/BulkDeleteRecord"
+            examples:
+              updateanddelete:
+                summary: Update one record, delete one record
+                value:
+                  - hostname: foo.example.com
+                    type: A
+                    content: 10.0.0.1
+                    ttl: 301
+                    comment: This is a comment
+                  - id: b51ce74d-b54c-480a-bd5f-dd5ec9b3c161
+                    action: delete
+      description: Bulk update records in one transaction
+      responses:
+        "200":
+          description: Bulk update successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Records"
+        "400":
+          description: Validation error
+          headers:
+            X-IPAM-Errors:
+              $ref: "#/components/headers/X-IPAM-Errors"
+  /records/{id}:
+    parameters:
+      - name: id
+        in: path
+        description: The UUID for the record being requested
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags:
+        - records
+      description: Get the record
+      responses:
+        "200":
+          description: Record object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Record"
+        "404":
+          description: Record not found
+    put:
+      tags:
+        - records
+      description: Update the record
+      parameters:
+        - $ref: "#/components/parameters/lockPasswordParam"
+      requestBody:
+        description:
+          Fields to update. Invalid fields and non-editable fields will be ignored and
+          will not generate an error
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/RecordEditableFields"
+      responses:
+        "200":
+          description: Record updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Record"
+        "400":
+          description: Validation error
+          headers:
+            X-IPAM-Errors:
+              $ref: "#/components/headers/X-IPAM-Errors"
+        "404":
+          description: Record not found
+    delete:
+      tags:
+        - records
+      parameters:
+        - $ref: "#/components/parameters/lockPasswordParam"
+      description: Delete (or archive) the record
+      responses:
+        "204":
+          description: record removed
+        "404":
+          description: Record not found
+  /transactions:
+    get:
+      operationId: ListTransactions
+      parameters:
+        - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/offsetParam"
+        - $ref: "#/components/parameters/orderParam"
+      tags:
+        - transactions
+      responses:
+        "200":
+          description: List of transactions for the current user.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+  /transactions/{id}:
+    parameters:
+      - name: id
+        in: path
+        description: The UUID for the transaction being requested
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags:
+        - transactions
+      description: Get the transaction
+      responses:
+        "200":
+          description: Record object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "404":
+          description: Record not found
+  /transactions/{txid}:
+    parameters:
+      - name: txid
+        in: path
+        description: The psql internal transaction ID for the transaction being requested
+        required: true
+        schema:
+          type: integer
+    get:
+      tags:
+        - transactions
+      description: Get the transaction
+      responses:
+        "302":
+          description: Transaction found.
+        "404":
+          description: Transaction not found
+  /zones:
+    get:
+      tags:
+        - zones
+      operationId: Listzones
+      parameters:
+        - $ref: "#/components/parameters/columnsParam"
+        - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/offsetParam"
+        - $ref: "#/components/parameters/orderParam"
+        - $ref: "#/components/parameters/searchParam"
+      responses:
+        "200":
+          description: List of zones.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Zone"
+          headers:
+            X-IPAM-PreviousPage:
+              $ref: "#/components/headers/X-IPAM-PreviousPage"
+            X-IPAM-NextPage:
+              $ref: "#/components/headers/X-IPAM-NextPage"
+    # 
+  /zones/{zone_name}:
+    parameters:
+      - name: zone_name
+        in: path
+        description: The zone's name for the zone being requested
+        example: ox.ac.uk.
+        required: true
+        schema:
+          type: string
+    get:
+      tags:
+        - zones
+      description: Get the zone
+      responses:
+        "200":
+          description: zone object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Zone"
+        "404":
+          description: Zone not found
+    # 

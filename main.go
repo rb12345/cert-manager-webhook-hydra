@@ -2,14 +2,21 @@ package main
 
 import (
 	"encoding/json"
+	"context"
 	"fmt"
 	"os"
 
 	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"github.com/antihax/optional"
 	"github.com/cert-manager/cert-manager/pkg/acme/webhook/apis/acme/v1alpha1"
 	"github.com/cert-manager/cert-manager/pkg/acme/webhook/cmd"
+	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
+	"github.com/cert-manager/webhook-example/swagger"
 )
 
 var GroupName = os.Getenv("GROUP_NAME")
@@ -40,7 +47,7 @@ type customDNSProviderSolver struct {
 	// 3. uncomment the relevant code in the Initialize method below
 	// 4. ensure your webhook's service account has the required RBAC role
 	//    assigned to it for interacting with the Kubernetes APIs you need.
-	//client kubernetes.Clientset
+	client kubernetes.Clientset
 }
 
 // customDNSProviderConfig is a structure that is used to decode into when
@@ -65,6 +72,8 @@ type customDNSProviderConfig struct {
 
 	//Email           string `json:"email"`
 	//APIKeySecretRef v1alpha1.SecretKeySelector `json:"apiKeySecretRef"`
+	HydraBasePath string `json:hydraBasePath"`
+	HydraTokenSecretRef cmmeta.SecretKeySelector `json:"hydraTokenSecretRef"`
 }
 
 // Name is used as the name for this DNS solver when referencing it on the ACME
@@ -88,10 +97,43 @@ func (c *customDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 		return err
 	}
 
-	// TODO: do something more useful with the decoded configuration
 	fmt.Printf("Decoded configuration %v", cfg)
 
+	if ch.Type != "dns-01" {
+		return fmt.Errorf("Unsupported challenge type: %s", ch.Type)
+	}
+
 	// TODO: add code that sets a record in the DNS provider's console
+	swaggerCfg := swagger.NewConfiguration()
+	swaggerCfg.BasePath = cfg.HydraBasePath
+	hydra := swagger.NewAPIClient(swaggerCfg)
+
+	auth, err := c.getAuthenticationDetails(ch.ResourceNamespace, cfg.HydraTokenSecretRef.LocalObjectReference.Name)
+	if err != nil {
+		return err
+	}
+	searchString := fmt.Sprintf("%s type:TXT", ch.ResolvedFQDN)
+	searchOpts := swagger.RecordsApiListRecordsOpts{Show: optional.NewString("all"), Q: optional.NewString(searchString)}
+	fmt.Printf("CleanUp: Querying Hydra for records: %s\n", searchString)
+	records, _, err := hydra.RecordsApi.ListRecords(auth, &searchOpts)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%v", records)
+	exists := false
+	for _, record := range records {
+		if record.Hostname == ch.ResolvedFQDN && record.Type_ == "TXT" && record.Content == ch.Key && record.Id != "" {
+			exists = true
+		}
+	}
+	if !exists {
+		// Create record
+		record, _, err := hydra.RecordsApi.CreateRecord(auth, ch.ResolvedFQDN, "TXT", ch.Key, "cert-manager challenge response", 300, "")
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Present: Published record with ID %s\n", record.Id)
+	}
 	return nil
 }
 
@@ -102,7 +144,41 @@ func (c *customDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 // This is in order to facilitate multiple DNS validations for the same domain
 // concurrently.
 func (c *customDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
-	// TODO: add code that deletes a record from the DNS provider's console
+	cfg, err := loadConfig(ch.Config)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Decoded configuration %v", cfg)
+
+	if ch.Type != "dns-01" {
+		return fmt.Errorf("Unsupported challenge type: %s", ch.Type)
+	}
+
+	swaggerCfg := swagger.NewConfiguration()
+	swaggerCfg.BasePath = cfg.HydraBasePath
+	hydra := swagger.NewAPIClient(swaggerCfg)
+
+	auth, err := c.getAuthenticationDetails(ch.ResourceNamespace, cfg.HydraTokenSecretRef.LocalObjectReference.Name)
+	if err != nil {
+		return err
+	}
+	searchString := fmt.Sprintf("%s type:TXT", ch.ResolvedFQDN)
+	searchOpts := swagger.RecordsApiListRecordsOpts{Show: optional.NewString("all"), Q: optional.NewString(searchString)}
+	fmt.Printf("CleanUp: Querying Hydra for records: %s\n", searchString)
+	records, _, err := hydra.RecordsApi.ListRecords(auth, &searchOpts)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%v", records)
+	for _, record := range records {
+		if record.Hostname == ch.ResolvedFQDN && record.Type_ == "TXT" && record.Content == ch.Key && record.Id != "" {
+			fmt.Printf("CleanUp: Deleting Hydra record ID: %s\n", record.Id)
+			_, err := hydra.RecordsApi.RecordsIdDelete(auth, record.Id, &swagger.RecordsApiRecordsIdDeleteOpts{})
+			if err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -119,12 +195,13 @@ func (c *customDNSProviderSolver) Initialize(kubeClientConfig *rest.Config, stop
 	///// UNCOMMENT THE BELOW CODE TO MAKE A KUBERNETES CLIENTSET AVAILABLE TO
 	///// YOUR CUSTOM DNS PROVIDER
 
-	//cl, err := kubernetes.NewForConfig(kubeClientConfig)
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//c.client = cl
+	cl, err := kubernetes.NewForConfig(kubeClientConfig)
+	if err != nil {
+		return err
+	}
+
+	c.client = *cl
+
 
 	///// END OF CODE TO MAKE KUBERNETES CLIENTSET AVAILABLE
 	return nil
@@ -143,4 +220,30 @@ func loadConfig(cfgJSON *extapi.JSON) (customDNSProviderConfig, error) {
 	}
 
 	return cfg, nil
+}
+
+func (c *customDNSProviderSolver) getAuthenticationDetails(namespace string, secretName string) (context.Context, error) {
+	// TODO: Get Kubernetes secret containing Hydra API token
+	ctx := context.Background()
+	secret, err := c.client.CoreV1().Secrets(namespace).Get(ctx, secretName, metav1.GetOptions{})
+	if err != nil {
+		return ctx, err
+	}
+	if secret.Type != corev1.SecretTypeBasicAuth {
+		return ctx, fmt.Errorf("Invalid secret type: %s", secret.Type)
+	}
+	if secret.Data[corev1.BasicAuthUsernameKey] == nil {
+		return ctx, fmt.Errorf("Missing username")
+	}
+	if secret.Data[corev1.BasicAuthPasswordKey] == nil {
+		return ctx, fmt.Errorf("Missing password")
+	}
+	username := string(secret.Data[corev1.BasicAuthUsernameKey])
+	password := string(secret.Data[corev1.BasicAuthPasswordKey])
+
+	auth := context.WithValue(context.Background(), swagger.ContextBasicAuth, swagger.BasicAuth{
+		UserName: username,
+		Password: password,
+	})
+	return auth, nil
 }
