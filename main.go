@@ -99,8 +99,8 @@ func (c *hydraDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 
 	fmt.Printf("Decoded configuration %v", cfg)
 
-	if ch.Type != "dns-01" {
-		return fmt.Errorf("Unsupported challenge type: %s", ch.Type)
+	if ch.Type != "" && ch.Type != "dns-01" {
+		return fmt.Errorf("Unsupported challenge type: '%s'", ch.Type)
 	}
 
 	// TODO: add code that sets a record in the DNS provider's console
@@ -150,7 +150,7 @@ func (c *hydraDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 	}
 	fmt.Printf("Decoded configuration %v", cfg)
 
-	if ch.Type != "dns-01" {
+	if ch.Type != "" && ch.Type != "dns-01" {
 		return fmt.Errorf("Unsupported challenge type: %s", ch.Type)
 	}
 
