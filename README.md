@@ -2,65 +2,32 @@
   <img src="https://raw.githubusercontent.com/cert-manager/cert-manager/d53c0b9270f8cd90d908460d69502694e1838f5f/logo/logo-small.png" height="256" width="256" alt="cert-manager project logo" />
 </p>
 
-# ACME webhook example
+# Hydra IPAM ACME webhook implementation
 
-The ACME issuer type supports an optional 'webhook' solver, which can be used
-to implement custom DNS01 challenge solving logic.
+This repository contains a basic `cert-manager` webhook implementation that
+allows users to respond to ACME DNS01 challenges using the Oxford Hydra IPAM
+system.
 
-This is useful if you need to use cert-manager with a DNS provider that is not
-officially supported in cert-manager core.
+## Hosting details
 
-## Why not in core?
+The webhook is deployed as a Kubernetes API service so access can be restricted
+via Kubernetes RBAC controls.  This prevents arbitrary people with access to the
+webhook from completing ACME challenge validations and obtaining certificates.
 
-As the project & adoption has grown, there has been an influx of DNS provider
-pull requests to our core codebase. As this number has grown, the test matrix
-has become un-maintainable and so, it's not possible for us to certify that
-providers work to a sufficient level.
+# Running the test suite
 
-By creating this 'interface' between cert-manager and DNS providers, we allow
-users to quickly iterate and test out new integrations, and then packaging
-those up themselves as 'extensions' to cert-manager.
-
-We can also then provide a standardised 'testing framework', or set of
-conformance tests, which allow us to validate that a DNS provider works as
-expected.
-
-## Creating your own webhook
-
-Webhook's themselves are deployed as Kubernetes API services, in order to allow
-administrators to restrict access to webhooks with Kubernetes RBAC.
-
-This is important, as otherwise it'd be possible for anyone with access to your
-webhook to complete ACME challenge validations and obtain certificates.
-
-To make the set up of these webhook's easier, we provide a template repository
-that can be used to get started quickly.
-
-When implementing your webhook, you should set the `groupName` in the
-[values.yml](deploy/example-webhook/values.yaml) of your chart to a domain name that 
-you - as the webhook-author - own. It should not need to be adjusted by the users of
-your chart.
-
-### Creating your own repository
-
-### Running the test suite
-
-All DNS providers **must** run the DNS01 provider conformance testing suite,
-else they will have undetermined behaviour when used with cert-manager.
-
-**It is essential that you configure and run the test suite when creating a
-DNS01 webhook.**
-
-An example Go test file has been provided in [main_test.go](https://github.com/rb12345/cert-manager-webhook-hydra/blob/master/main_test.go).
+Before deploying  any modifications, you **must** run the DNS01 provider
+conformance testing suite as configured in [main_test.go](https://github.com/rb12345/cert-manager-webhook-hydra/blob/master/main_test.go).
 
 You can run the test suite with:
 
 ```bash
-$ TEST_ZONE_NAME=example.com. TEST_DNS_SERVER=pigeon.dns.ox.ac.uk:53 make test
+$ TEST_ZONE_NAME=example.ox.ac.uk. TEST_DNS_SERVER=pigeon.dns.ox.ac.uk:53 make test
 ```
 
-The example file has a number of areas you must fill in and replace with your
-own options in order for tests to pass.
+after first creating a Kubernetes Secret manifest file at
+`testdata/hydra-dns01-solver/hydratoken.yaml` with credentials for the Hydra
+sandpit environment.
 
 # Using the new provider
 
@@ -114,4 +81,18 @@ then use the following `Issuer` configuration to make use of the webhook:
                 hydraTokenSecretRef:
                   name: "hydra-api-token"
 
+You should then be able to request a new certificate via:
 
+    apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      name: testname-cert
+    spec:
+      dnsNames:
+        - testname.subdomain.ox.ac.uk
+      secretName: testname-cert-tls
+      issuerRef:
+        name: example-issuer
+
+and watch your new certificate appear within 5-10 minutes after DNS has been
+updated.
