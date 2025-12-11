@@ -2,7 +2,7 @@ GO ?= $(shell which go)
 OS ?= $(shell $(GO) env GOOS)
 ARCH ?= $(shell $(GO) env GOARCH)
 
-IMAGE_NAME := "webhook"
+IMAGE_NAME := "registry.shore.it.ox.ac.uk/library/cert-manager-webhook-hydra"
 IMAGE_TAG := "latest"
 
 OUT := $(shell pwd)/_out
