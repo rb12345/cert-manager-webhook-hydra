@@ -21,7 +21,7 @@ func TestRunsSuite(t *testing.T) {
 	//
 
 	// Uncomment the below fixture when implementing your custom DNS provider
-	//fixture := acmetest.NewFixture(&customDNSProviderSolver{},
+	//fixture := acmetest.NewFixture(&hydraDNSProviderSolver{},
 	//	acmetest.SetResolvedZone(zone),
 	//	acmetest.SetAllowAmbientCredentials(false),
 	//	acmetest.SetManifestPath("testdata/my-custom-solver"),
