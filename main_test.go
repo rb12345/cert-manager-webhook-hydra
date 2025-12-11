@@ -6,7 +6,7 @@ import (
 
 	acmetest "github.com/cert-manager/cert-manager/test/acme"
 
-	//"github.com/cert-manager/webhook-example"
+	//"github.com/rb12345/cert-manager-webhook-hydra"
 )
 
 var (

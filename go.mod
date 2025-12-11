@@ -1,4 +1,4 @@
-module github.com/cert-manager/webhook-example
+module github.com/rb12345/cert-manager-webhook-hydra
 
 go 1.24.0
 

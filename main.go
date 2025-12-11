@@ -16,7 +16,7 @@ import (
 	"github.com/cert-manager/cert-manager/pkg/acme/webhook/apis/acme/v1alpha1"
 	"github.com/cert-manager/cert-manager/pkg/acme/webhook/cmd"
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
-	"github.com/cert-manager/webhook-example/swagger"
+	"github.com/rb12345/cert-manager-webhook-hydra/swagger"
 )
 
 var GroupName = os.Getenv("GROUP_NAME")
