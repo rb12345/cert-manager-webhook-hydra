@@ -24,7 +24,7 @@ func TestRunsSuite(t *testing.T) {
 	fixture := acmetest.NewFixture(&hydraDNSProviderSolver{},
 		acmetest.SetResolvedZone(zone),
 		acmetest.SetAllowAmbientCredentials(false),
-		acmetest.SetManifestPath("testdata/my-custom-solver"),
+		acmetest.SetManifestPath("testdata/hydra-dns01-solver"),
 		acmetest.SetDNSServer(testDNS),
 		acmetest.SetUseAuthoritative(false),
 	)

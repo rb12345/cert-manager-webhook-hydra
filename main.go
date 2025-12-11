@@ -83,7 +83,7 @@ type hydraDNSProviderConfig struct {
 // within a single webhook deployment**.
 // For example, `cloudflare` may be used as the name of a solver.
 func (c *hydraDNSProviderSolver) Name() string {
-	return "my-custom-solver"
+	return "hydra-dns01-solver"
 }
 
 // Present is responsible for actually presenting the DNS record with the

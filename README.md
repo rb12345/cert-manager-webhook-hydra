@@ -106,7 +106,7 @@ then use the following `Issuer` configuration to make use of the webhook:
         - dns01:
             webhook:
               groupName: "acme.ox.ac.uk"
-              solverName: "my-custom-solver"
+              solverName: "hydra-dns01-solver"
               config:
                 # For the sandpit, use:
                 # hydraBasePath: "https://www.networks.it.ox.ac.uk/api/sandpit/ipam/"
