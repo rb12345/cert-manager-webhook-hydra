@@ -56,8 +56,62 @@ An example Go test file has been provided in [main_test.go](https://github.com/c
 You can run the test suite with:
 
 ```bash
-$ TEST_ZONE_NAME=example.com. TEST_DNS_SERVER=pidgeon.dns.ox.ac.uk:53 make test
+$ TEST_ZONE_NAME=example.com. TEST_DNS_SERVER=pigeon.dns.ox.ac.uk:53 make test
 ```
 
 The example file has a number of areas you must fill in and replace with your
 own options in order for tests to pass.
+
+# Using the new provider
+
+First, create a Hydra token with the following mask:
+
+* `hostname: %.subdomain.ox.ac.uk.`
+* `ip: [blank]`
+* `content: [blank]`
+* `target: [blank]`
+
+where `subdomain.ox.ac.uk` is the domain for which challenges should be issued.
+
+Next, install the webhook using Helm:
+
+    cd deploy/cert-manager-webhook-hydra/
+    helm install cert-manager-webhook-hydra .
+
+Once the webhook is installed, create a new Basic auth secret containing the
+Hydra token:
+
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: hydra-api-token
+    type: kubernetes.io/basic-auth
+    stringData:
+      username: "$TOKEN_USERNAME"
+      password: "$TOKEN_PASSWORD"
+
+then use the following `Issuer` configuration to make use of the webhook:
+
+    apiVersion: cert-manager.io/v1
+    kind: Issuer
+    metadata:
+      name: example-issuer
+    spec:
+      acme:
+        email: first.last@it.ox.ac.uk
+        server: https://acme-staging-v02.api.letsencrypt.org/directory
+        privateKeySecretRef:
+          name: example-issuer-account-key
+        solvers:
+        - dns01:
+            webhook:
+              groupName: "acme.ox.ac.uk"
+              solverName: "my-custom-solver"
+              config:
+                # For the sandpit, use:
+                # hydraBasePath: "https://www.networks.it.ox.ac.uk/api/sandpit/ipam/"
+                hydraBasePath: "https://www.networks.it.ox.ac.uk/api/ipam/"
+                hydraTokenSecretRef:
+                  name: "hydra-api-token"
+
+
