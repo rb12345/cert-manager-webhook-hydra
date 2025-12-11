@@ -17,3 +17,6 @@ cert-manager-webhook-hydra
 # Make artifacts
 _out
 _test
+
+# Hydra tokens for testing
+testdata/hydra-dns01-solver/hydratoken.yaml
