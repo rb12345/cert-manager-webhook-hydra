@@ -11,6 +11,7 @@ import (
 
 var (
 	zone = os.Getenv("TEST_ZONE_NAME")
+	testDNS = os.Getenv("TEST_DNS_SERVER")
 )
 
 func TestRunsSuite(t *testing.T) {
@@ -25,6 +26,8 @@ func TestRunsSuite(t *testing.T) {
 	//	acmetest.SetAllowAmbientCredentials(false),
 	//	acmetest.SetManifestPath("testdata/my-custom-solver"),
 	//	acmetest.SetBinariesPath("_test/kubebuilder/bin"),
+	//	acmetest.SetDNSServer(testDNS),
+	//	acmetest.SetUseAuthoritative(false),
 	//)
 	solver := example.New("59351")
 	fixture := acmetest.NewFixture(solver,

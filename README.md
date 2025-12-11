@@ -56,7 +56,7 @@ An example Go test file has been provided in [main_test.go](https://github.com/c
 You can run the test suite with:
 
 ```bash
-$ TEST_ZONE_NAME=example.com. make test
+$ TEST_ZONE_NAME=example.com. TEST_DNS_SERVER=pidgeon.dns.ox.ac.uk:53 make test
 ```
 
 The example file has a number of areas you must fill in and replace with your
