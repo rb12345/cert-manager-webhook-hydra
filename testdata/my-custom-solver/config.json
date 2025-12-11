@@ -1,1 +1,6 @@
-{}
+{
+    "hydraBasePath": "https://www.networks.it.ox.ac.uk/api/sandpit/ipam/",
+    "hydraTokenSecretRef": {
+        "name": "hydra-api-token"
+    }
+}
