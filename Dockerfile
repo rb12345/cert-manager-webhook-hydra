@@ -1,6 +1,6 @@
-FROM golang:1.23-alpine3.19@sha256:5f3336882ad15d10ac1b59fbaba7cb84c35d4623774198b36ae60edeba45fd84 AS build_deps
+FROM golang:1.24-trixie AS build_deps
 
-RUN apk add --no-cache git
+RUN apt-get update && apt-get install -y git && apt-get clean
 
 WORKDIR /workspace
 
@@ -15,9 +15,9 @@ COPY . .
 
 RUN CGO_ENABLED=0 go build -o webhook -ldflags '-w -extldflags "-static"' .
 
-FROM alpine:3.23@sha256:51183f2cfa6320055da30872f211093f9ff1d3cf06f39a0bdb212314c5dc7375
+FROM debian:trixie-slim
 
-RUN apk add --no-cache ca-certificates
+RUN apt-get update && apt-get install -y ca-certificates && apt-get clean
 
 COPY --from=build /workspace/webhook /usr/local/bin/webhook
 
