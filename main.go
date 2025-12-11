@@ -113,7 +113,7 @@ func (c *hydraDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 		return err
 	}
 	searchString := fmt.Sprintf("%s type:TXT", ch.ResolvedFQDN)
-	searchOpts := swagger.RecordsApiListRecordsOpts{Show: optional.NewString("all"), Q: optional.NewString(searchString)}
+	searchOpts := swagger.RecordsApiListRecordsOpts{Q: optional.NewString(searchString)}
 	fmt.Printf("CleanUp: Querying Hydra for records: %s\n", searchString)
 	records, _, err := hydra.RecordsApi.ListRecords(auth, &searchOpts)
 	if err != nil {
@@ -163,7 +163,7 @@ func (c *hydraDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 		return err
 	}
 	searchString := fmt.Sprintf("%s type:TXT", ch.ResolvedFQDN)
-	searchOpts := swagger.RecordsApiListRecordsOpts{Show: optional.NewString("all"), Q: optional.NewString(searchString)}
+	searchOpts := swagger.RecordsApiListRecordsOpts{Q: optional.NewString(searchString)}
 	fmt.Printf("CleanUp: Querying Hydra for records: %s\n", searchString)
 	records, _, err := hydra.RecordsApi.ListRecords(auth, &searchOpts)
 	if err != nil {
