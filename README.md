@@ -57,12 +57,48 @@ Hydra token:
       username: "$TOKEN_USERNAME"
       password: "$TOKEN_PASSWORD"
 
-then use the following `Issuer` configuration to make use of the webhook:
+We now need to create a `Role` and `RoleBinding` object within our namespace to
+allow the webhook to read the Hydra token secret:
+
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      namespace: test-ns
+      name: secret-reader
+    rules:
+    - apiGroups: [""]
+      #
+      # at the HTTP level, the name of the resource for accessing Secret
+      # objects is "secrets"
+      resources: ["secrets"]
+      verbs: ["get", "watch", "list"]
+    ...
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: read-secrets
+      # This only grants permissions within the "test-ns" namespace.
+      namespace: test-ns
+    subjects:
+    - kind: User
+      name: system:serviceaccount:cert-manager:cert-manager-webhook-hydra # Name is case sensitive
+      apiGroup: rbac.authorization.k8s.io
+    roleRef:
+      kind: Role
+      name: secret-reader
+      apiGroup: rbac.authorization.k8s.io
+    ...
+
+Once this is done, you can use the following `Issuer` configuration to make use
+of the webhook with the Let's Encrypt staging service:
 
     apiVersion: cert-manager.io/v1
     kind: Issuer
     metadata:
       name: example-issuer
+      namespace: test-ns
     spec:
       acme:
         email: first.last@it.ox.ac.uk
@@ -81,12 +117,13 @@ then use the following `Issuer` configuration to make use of the webhook:
                 hydraTokenSecretRef:
                   name: "hydra-api-token"
 
-You should then be able to request a new certificate via:
+Finally, request a new certificate via:
 
     apiVersion: cert-manager.io/v1
     kind: Certificate
     metadata:
       name: testname-cert
+      namespace: test-ns
     spec:
       dnsNames:
         - testname.subdomain.ox.ac.uk
