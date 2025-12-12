@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 
 	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -97,7 +98,7 @@ func (c *hydraDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 		return err
 	}
 
-	fmt.Printf("Decoded configuration %v", cfg)
+	slog.Debug(fmt.Sprintf("Decoded configuration %v", cfg))
 
 	if ch.Type != "" && ch.Type != "dns-01" {
 		return fmt.Errorf("Unsupported challenge type: '%s'", ch.Type)
@@ -114,12 +115,12 @@ func (c *hydraDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 	}
 	searchString := fmt.Sprintf("%s type:TXT", ch.ResolvedFQDN)
 	searchOpts := swagger.RecordsApiListRecordsOpts{Q: optional.NewString(searchString)}
-	fmt.Printf("CleanUp: Querying Hydra for records: %s\n", searchString)
+	slog.Info(fmt.Sprintf("CleanUp: Querying Hydra for records: %s\n", searchString))
 	records, _, err := hydra.RecordsApi.ListRecords(auth, &searchOpts)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%v", records)
+	slog.Info(fmt.Sprintf("%v", records))
 	exists := false
 	for _, record := range records {
 		if record.Hostname == ch.ResolvedFQDN && record.Type_ == "TXT" && record.Content == ch.Key && record.Id != "" {
@@ -132,7 +133,7 @@ func (c *hydraDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Present: Published record with ID %s\n", record.Id)
+		slog.Info(fmt.Sprintf("Present: Published record with ID %s\n", record.Id))
 	}
 	return nil
 }
@@ -148,7 +149,7 @@ func (c *hydraDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Decoded configuration %v", cfg)
+	slog.Debug(fmt.Sprintf("Decoded configuration %v", cfg))
 
 	if ch.Type != "" && ch.Type != "dns-01" {
 		return fmt.Errorf("Unsupported challenge type: %s", ch.Type)
@@ -164,15 +165,15 @@ func (c *hydraDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 	}
 	searchString := fmt.Sprintf("%s type:TXT", ch.ResolvedFQDN)
 	searchOpts := swagger.RecordsApiListRecordsOpts{Q: optional.NewString(searchString)}
-	fmt.Printf("CleanUp: Querying Hydra for records: %s\n", searchString)
+	slog.Info(fmt.Sprintf("CleanUp: Querying Hydra for records: %s\n", searchString))
 	records, _, err := hydra.RecordsApi.ListRecords(auth, &searchOpts)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%v", records)
+	slog.Info(fmt.Sprintf("%v", records))
 	for _, record := range records {
 		if record.Hostname == ch.ResolvedFQDN && record.Type_ == "TXT" && record.Content == ch.Key && record.Id != "" {
-			fmt.Printf("CleanUp: Deleting Hydra record ID: %s\n", record.Id)
+			slog.Info(fmt.Sprintf("CleanUp: Deleting Hydra record ID: %s\n", record.Id))
 			_, err := hydra.RecordsApi.RecordsIdDelete(auth, record.Id, &swagger.RecordsApiRecordsIdDeleteOpts{})
 			if err != nil {
 				return err
