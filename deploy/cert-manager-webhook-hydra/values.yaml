@@ -15,7 +15,7 @@ certManager:
   serviceAccountName: cert-manager
 
 image:
-  repository: registry.shore.it.ox.ac.uk/library/cert-manager-webhook-hydra
+  repository: registry.shore.ox.ac.uk/iam/cert-manager-webhook-hydra
   tag: latest
   pullPolicy: IfNotPresent
 

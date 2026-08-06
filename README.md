@@ -133,3 +133,8 @@ Finally, request a new certificate via:
 
 and watch your new certificate appear within 5-10 minutes after DNS has been
 updated.
+
+# Upgrades
+
+    cd deploy/cert-manager-webhook-hydra/
+    helm upgrade -n cert-manager cert-manager-webhook-hydra .
